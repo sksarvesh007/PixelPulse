@@ -1,9 +1,8 @@
 # PIXELPULSE
 
-* [X]  to find out which window the user is on
+* [X] to find out which window the user is on
 
   `used pygetwindows for getting what is the active windows of the user  , also gets which file and what directory is the user working on and on which tab in which browser is the user currently `
-
 * [ ] find out the time the user is on that window
 
   `set a timer which runs until the tabs are switched `
@@ -19,6 +18,6 @@
 
   `like at 3:30 i was surfing r/learnpython , so i should be able to set a time stamp at a particular time and the graph should be minimised into a tree which shows my tracks at 3:30 about what was i surfing at that time and through which paths i got there `
 
-#### CHALLENGES 
+#### CHALLENGES
 
 the spotify when at home page shows `spotify premium` but when i go to a particular album it doesnt shows if the spotify is playing or not , it just shows like this `Playboi Carti - Control`
