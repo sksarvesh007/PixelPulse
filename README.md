@@ -18,6 +18,12 @@
 
   `like at 3:30 i was surfing r/learnpython , so i should be able to set a time stamp at a particular time and the graph should be minimised into a tree which shows my tracks at 3:30 about what was i surfing at that time and through which paths i got there `
 
+#### JSON CRACK 
+
+I would recommend to download an extension called `json crack` , this extension helps you to view your activities.json file in such a great way in form of trees , will try to implement exact similar tree type structure in the web application 
+
+![1717145587213](image/README/1717145587213.png)![1717145532928](image/README/1717145532928.png)
+
 #### CHALLENGES
 
 the spotify when at home page shows `spotify premium` but when i go to a particular album it doesnt shows if the spotify is playing or not , it just shows like this `Playboi Carti - Control`
