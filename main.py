@@ -4,7 +4,6 @@ import pygetwindow as gw
 import time
 from dateutil import parser
 
-
 class ActivityList:
     def __init__(self, activities=None):
         if activities is None:
@@ -28,23 +27,11 @@ class ActivityList:
             activities.append(
                 Activity(
                     name=activity['name'],
-                    time_entries=ActivityList.get_time_entries_from_json(activity['time_entries']),
+                    time=activity['time'],
                     children=ActivityList.get_activities_from_json(activity['children']) if 'children' in activity else []
                 )
             )
         return activities
-
-    @staticmethod
-    def get_time_entries_from_json(data):
-        time_entries = []
-        for entry in data:
-            time_entries.append(
-                TimeEntry(
-                    start_time=parser.parse(entry['start_time']),
-                    end_time=parser.parse(entry['end_time'])
-                )
-            )
-        return time_entries
 
     def serialize(self):
         return {
@@ -75,23 +62,31 @@ class ActivityList:
 
 
 class Activity:
-    def __init__(self, name, time_entries=None, children=None):
-        if time_entries is None:
-            time_entries = []
+    def __init__(self, name, time=None, children=None):
+        if time is None:
+            time = {'hours': 0, 'minutes': 0, 'seconds': 0}
         if children is None:
             children = []
         self.name = name
-        self.time_entries = time_entries
+        self.time = time
         self.children = children
 
-    def add_time_entry(self, start_time, end_time):
-        time_entry = TimeEntry(start_time, end_time)
-        self.time_entries.append(time_entry)
+    def add_time_entry(self, time_spent):
+        seconds = time_spent.total_seconds()
+        self.time['seconds'] += int(seconds % 60)
+        self.time['minutes'] += int((seconds // 60) % 60)
+        self.time['hours'] += int(seconds // 3600)
+
+        # Normalize time entries
+        self.time['minutes'] += self.time['seconds'] // 60
+        self.time['seconds'] %= 60
+        self.time['hours'] += self.time['minutes'] // 60
+        self.time['minutes'] %= 60
 
     def serialize(self):
         return {
             'name': self.name,
-            'time_entries': [time.serialize() for time in self.time_entries],
+            'time': self.time,
             'children': [child.serialize() for child in self.children]
         }
 
@@ -109,45 +104,26 @@ class Activity:
         return new_child
 
     def aggregate_time(self):
-        total_time = sum((child.aggregate_time() for child in self.children), datetime.timedelta())
-        total_time += sum((time_entry.total_time for time_entry in self.time_entries), datetime.timedelta())
-        self.total_time = total_time
+        total_time = {'hours': self.time['hours'],
+                      'minutes': self.time['minutes'],
+                      'seconds': self.time['seconds']}
+        for child in self.children:
+            child_time = child.aggregate_time()
+            total_time['seconds'] += child_time['seconds']
+            total_time['minutes'] += child_time['minutes']
+            total_time['hours'] += child_time['hours']
+
+        # Normalize time entries
+        total_time['minutes'] += total_time['seconds'] // 60
+        total_time['seconds'] %= 60
+        total_time['hours'] += total_time['minutes'] // 60
+        total_time['minutes'] %= 60
+
+        self.time = total_time
         return total_time
 
     def get_total_time_entries(self):
-        self.aggregate_time()
-        days, seconds = divmod(self.total_time.total_seconds(), 86400)
-        hours, seconds = divmod(seconds, 3600)
-        minutes, seconds = divmod(seconds, 60)
-        return {
-            'days': int(days),
-            'hours': int(hours),
-            'minutes': int(minutes),
-            'seconds': int(seconds)
-        }
-
-
-class TimeEntry:
-    def __init__(self, start_time, end_time):
-        self.start_time = start_time
-        self.end_time = end_time
-        self.total_time = end_time - start_time
-        self._get_specific_times()
-
-    def _get_specific_times(self):
-        self.days, remainder = divmod(self.total_time.total_seconds(), 86400)
-        self.hours, remainder = divmod(remainder, 3600)
-        self.minutes, self.seconds = divmod(remainder, 60)
-
-    def serialize(self):
-        return {
-            'start_time': self.start_time.strftime("%Y-%m-%d %H:%M:%S"),
-            'end_time': self.end_time.strftime("%Y-%m-%d %H:%M:%S"),
-            'days': int(self.days),
-            'hours': int(self.hours),
-            'minutes': int(self.minutes),
-            'seconds': int(self.seconds)
-        }
+        return self.aggregate_time()
 
 
 def get_active_window_title():
@@ -169,6 +145,7 @@ def main():
     activity_list = ActivityList.initialize_me()
     active_window = get_active_window_title()
     prev_time = datetime.datetime.now()
+    current_activity = None
 
     try:
         while True:
@@ -179,19 +156,18 @@ def main():
                 time_spent = current_time - prev_time
                 prev_time = current_time
                 if prev is not None:
+                    if current_activity is not None:
+                        current_activity.add_time_entry(time_spent)
                     if "Visual Studio Code" in prev:
                         normalized_prev = normalize_vscode_title(prev)
                         parts = normalized_prev.split(" - ")
-                        activity = activity_list.find_or_create_activity(parts)
-                        activity.add_time_entry(prev_time - time_spent, prev_time)
+                        current_activity = activity_list.find_or_create_activity(parts)
                     elif "Brave" in prev.lower():
                         parts = prev.split(" - ")
-                        activity = activity_list.find_or_create_activity(parts)
-                        activity.add_time_entry(prev_time - time_spent, prev_time)
+                        current_activity = activity_list.find_or_create_activity(parts)
                     else:
                         parts = prev.split(" - ")
-                        activity = activity_list.find_or_create_activity(parts)
-                        activity.add_time_entry(prev_time - time_spent, prev_time)
+                        current_activity = activity_list.find_or_create_activity(parts)
                 activity_list.save()
             time.sleep(1)
     except KeyboardInterrupt:
