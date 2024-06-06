@@ -57,8 +57,13 @@ class ActivityList:
         return new_activity
 
     def save(self, filename="activities.json"):
+        self.aggregate_all_times()  # Aggregate time for all activities before saving
         with open(filename, "w") as file:
             json.dump(self.serialize(), file, indent=4)
+
+    def aggregate_all_times(self):
+        for activity in self.activities:
+            activity.aggregate_time()
 
 
 class Activity:
@@ -104,9 +109,8 @@ class Activity:
         return new_child
 
     def aggregate_time(self):
-        total_time = {'hours': self.time['hours'],
-                      'minutes': self.time['minutes'],
-                      'seconds': self.time['seconds']}
+        total_time = {'hours': 0, 'minutes': 0, 'seconds': 0}
+
         for child in self.children:
             child_time = child.aggregate_time()
             total_time['seconds'] += child_time['seconds']
@@ -119,8 +123,18 @@ class Activity:
         total_time['hours'] += total_time['minutes'] // 60
         total_time['minutes'] %= 60
 
-        self.time = total_time
-        return total_time
+        # Add current activity's time to the aggregated time from children
+        self.time['seconds'] += total_time['seconds']
+        self.time['minutes'] += total_time['minutes']
+        self.time['hours'] += total_time['hours']
+
+        # Normalize again after adding
+        self.time['minutes'] += self.time['seconds'] // 60
+        self.time['seconds'] %= 60
+        self.time['hours'] += self.time['minutes'] // 60
+        self.time['minutes'] %= 60
+
+        return self.time
 
     def get_total_time_entries(self):
         return self.aggregate_time()
@@ -161,14 +175,26 @@ def main():
                     if "Visual Studio Code" in prev:
                         normalized_prev = normalize_vscode_title(prev)
                         parts = normalized_prev.split(" - ")
-                        current_activity = activity_list.find_or_create_activity(parts)
+                        prev_activity = activity_list.find_or_create_activity(parts)
                     elif "Brave" in prev.lower():
                         parts = prev.split(" - ")
-                        current_activity = activity_list.find_or_create_activity(parts)
+                        prev_activity = activity_list.find_or_create_activity(parts)
                     else:
                         parts = prev.split(" - ")
-                        current_activity = activity_list.find_or_create_activity(parts)
+                        prev_activity = activity_list.find_or_create_activity(parts)
+                    prev_activity.add_time_entry(time_spent)  # Add time to the correct previous activity
                 activity_list.save()
+                # Update the current activity after saving the previous one
+                if "Visual Studio Code" in active_window:
+                    normalized_active = normalize_vscode_title(active_window)
+                    parts = normalized_active.split(" - ")
+                    current_activity = activity_list.find_or_create_activity(parts)
+                elif "Brave" in active_window.lower():
+                    parts = active_window.split(" - ")
+                    current_activity = activity_list.find_or_create_activity(parts)
+                else:
+                    parts = active_window.split(" - ")
+                    current_activity = activity_list.find_or_create_activity(parts)
             time.sleep(1)
     except KeyboardInterrupt:
         print("Stopping activity tracker...")
