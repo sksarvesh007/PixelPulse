@@ -1,7 +1,11 @@
+import tkinter as tk
+from tkinter import messagebox
 import json
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.express as px
+import webbrowser
+import os
 
 def load_json_data(filename):
     with open(filename, 'r') as json_file:
@@ -65,10 +69,25 @@ def plot_graph(data):
     fig.data[0].on_click(update_trace)
     fig.show()
 
-def main():
+def open_dashboard():
     json_filename = 'time_log.json'
-    data = load_json_data(json_filename)
-    plot_graph(data)
+    if os.path.exists(json_filename):
+        data = load_json_data(json_filename)
+        plot_graph(data)
+    else:
+        messagebox.showerror("Error", f"{json_filename} not found!")
+
+def main():
+    root = tk.Tk()
+    root.title("Activity Tracker Dashboard")
+
+    frame = tk.Frame(root)
+    frame.pack(padx=10, pady=10)
+
+    btn_show_dashboard = tk.Button(frame, text="Show Dashboard", command=open_dashboard)
+    btn_show_dashboard.pack(padx=10, pady=10)
+
+    root.mainloop()
 
 if __name__ == "__main__":
     main()
