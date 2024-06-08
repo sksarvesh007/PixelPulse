@@ -1,11 +1,11 @@
-import tkinter as tk
-from tkinter import messagebox
 import json
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import plotly.express as px
-import webbrowser
 import os
+import sys
+from PyQt5.QtWidgets import QApplication, QVBoxLayout, QPushButton, QWidget, QMessageBox
+from PyQt5.QtWebEngineWidgets import QWebEngineView
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+import plotly.express as px
 
 def load_json_data(filename):
     with open(filename, 'r') as json_file:
@@ -30,64 +30,78 @@ def get_level_data(flattened_data, level_name):
     return level_data
 
 def create_bar_chart(level_data, title):
-    fig = go.Figure()
     names = [item['name'].split(' -> ')[-1] for item in level_data]
     times = [item['seconds'] for item in level_data]
-    
-    fig.add_trace(go.Bar(
+
+    fig = px.bar(
         x=times,
         y=names,
         orientation='h',
-        marker=dict(color=times, colorscale='Viridis')
-    ))
-    
-    fig.update_layout(
-        title=title,
-        xaxis_title='Time (seconds)',
-        yaxis_title='Activities',
-        yaxis=dict(autorange='reversed')
+        labels={'x': 'Time (seconds)', 'y': 'Activities'},
+        title=title
     )
-    
+    fig.update_layout(yaxis=dict(autorange='reversed'))
     return fig
 
-def plot_graph(data):
-    flattened_data = []
-    for activity in data['activities']:
-        flattened_data.extend(flatten_data(activity))
-    
-    fig = create_bar_chart(get_level_data(flattened_data, ''), 'Top Level Activities')
+class Dashboard(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.initUI()
 
-    def update_trace(trace, points, state):
-        if points.point_inds:
-            clicked_name = points.point_inds[0]
-            clicked_full_name = flattened_data[clicked_name]['name']
-            children_data = get_level_data(flattened_data, clicked_full_name)
-            if children_data:
-                fig = create_bar_chart(children_data, f'Activities under "{clicked_full_name}"')
-                fig.show()
+    def initUI(self):
+        self.setWindowTitle('Activity Tracker Dashboard')
+        self.setGeometry(100, 100, 1200, 800)
 
-    fig.data[0].on_click(update_trace)
-    fig.show()
+        self.layout = QVBoxLayout()
 
-def open_dashboard():
-    json_filename = 'time_log.json'
-    if os.path.exists(json_filename):
-        data = load_json_data(json_filename)
-        plot_graph(data)
-    else:
-        messagebox.showerror("Error", f"{json_filename} not found!")
+        self.btn_show_dashboard = QPushButton('Show Dashboard')
+        self.btn_show_dashboard.clicked.connect(self.open_dashboard)
+        self.layout.addWidget(self.btn_show_dashboard)
+
+        self.browser = QWebEngineView()
+        self.layout.addWidget(self.browser)
+
+        self.setLayout(self.layout)
+
+    def open_dashboard(self):
+        json_filename = 'time_log.json'
+        if os.path.exists(json_filename):
+            data = load_json_data(json_filename)
+            self.plot_graph(data)
+        else:
+            QMessageBox.critical(self, 'Error', f'{json_filename} not found!')
+
+    def plot_graph(self, data):
+        flattened_data = []
+        for activity in data['activities']:
+            flattened_data.extend(flatten_data(activity))
+
+        initial_level_data = get_level_data(flattened_data, '')
+        fig = create_bar_chart(initial_level_data, 'Top Level Activities')
+
+        fig_html = fig.to_html(include_plotlyjs='cdn')
+        self.browser.setHtml(fig_html)
+
+        def update_trace(trace, points, state):
+            if points.point_inds:
+                clicked_name = points.point_inds[0]
+                clicked_full_name = flattened_data[clicked_name]['name']
+                children_data = get_level_data(flattened_data, clicked_full_name)
+                if children_data:
+                    self.browser.setHtml("")
+                    for i, child_data in enumerate(children_data):
+                        new_fig = create_bar_chart([child_data], f'Activity: {child_data["name"]}')
+                        new_fig_html = new_fig.to_html(include_plotlyjs='cdn')
+                        self.browser.page().runJavaScript(f'var div{i} = document.createElement("div"); div{i}.setAttribute("id", "plotly_div_{i}"); document.body.appendChild(div{i});')
+                        self.browser.page().runJavaScript(f'Plotly.newPlot("plotly_div_{i}", {new_fig.to_dict()}, {{displayModeBar: false}});')
+
+        fig.data[0].on_click(update_trace)
 
 def main():
-    root = tk.Tk()
-    root.title("Activity Tracker Dashboard")
-
-    frame = tk.Frame(root)
-    frame.pack(padx=10, pady=10)
-
-    btn_show_dashboard = tk.Button(frame, text="Show Dashboard", command=open_dashboard)
-    btn_show_dashboard.pack(padx=10, pady=10)
-
-    root.mainloop()
+    app = QApplication(sys.argv)
+    dashboard = Dashboard()
+    dashboard.show()
+    sys.exit(app.exec_())
 
 if __name__ == "__main__":
     main()

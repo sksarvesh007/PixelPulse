@@ -61,7 +61,6 @@ def plot_graph(data):
             if children_data:
                 fig = create_bar_chart(children_data, f'Activities under "{clicked_full_name}"')
                 fig.show()
-
     fig.data[0].on_click(update_trace)
     fig.show()
 
