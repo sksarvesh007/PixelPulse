@@ -1,12 +1,11 @@
 import json
-import os
 import sys
 from PyQt5.QtWidgets import QApplication, QVBoxLayout, QPushButton, QWidget, QMessageBox
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from plotly.subplots import make_subplots
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import plotly.express as px
-
+import os 
 def load_json_data(filename):
     with open(filename, 'r') as json_file:
         return json.load(json_file)
@@ -43,6 +42,17 @@ def create_bar_chart(level_data, title):
     fig.update_layout(yaxis=dict(autorange='reversed'))
     return fig
 
+def create_pie_chart(level_data, title):
+    names = [item['name'].split(' -> ')[-1] for item in level_data]
+    times = [item['seconds'] for item in level_data]
+
+    fig = px.pie(
+        names=names,
+        values=times,
+        title=title
+    )
+    return fig
+
 class Dashboard(QWidget):
     def __init__(self):
         super().__init__()
@@ -50,7 +60,7 @@ class Dashboard(QWidget):
 
     def initUI(self):
         self.setWindowTitle('Activity Tracker Dashboard')
-        self.setGeometry(100, 100, 1200, 800)
+        self.setGeometry(100, 100, 1000, 600)
 
         self.layout = QVBoxLayout()
 
@@ -82,18 +92,25 @@ class Dashboard(QWidget):
         fig_html = fig.to_html(include_plotlyjs='cdn')
         self.browser.setHtml(fig_html)
 
+        # Add Pie Chart
+        pie_fig = create_pie_chart(initial_level_data, 'Top Level Activities Distribution')
+        pie_fig_html = pie_fig.to_html(include_plotlyjs='cdn')
+        self.browser.setHtml(pie_fig_html)
+
         def update_trace(trace, points, state):
             if points.point_inds:
                 clicked_name = points.point_inds[0]
                 clicked_full_name = flattened_data[clicked_name]['name']
                 children_data = get_level_data(flattened_data, clicked_full_name)
                 if children_data:
-                    self.browser.setHtml("")
-                    for i, child_data in enumerate(children_data):
-                        new_fig = create_bar_chart([child_data], f'Activity: {child_data["name"]}')
-                        new_fig_html = new_fig.to_html(include_plotlyjs='cdn')
-                        self.browser.page().runJavaScript(f'var div{i} = document.createElement("div"); div{i}.setAttribute("id", "plotly_div_{i}"); document.body.appendChild(div{i});')
-                        self.browser.page().runJavaScript(f'Plotly.newPlot("plotly_div_{i}", {new_fig.to_dict()}, {{displayModeBar: false}});')
+                    new_fig = create_bar_chart(children_data, f'Activities under "{clicked_full_name}"')
+                    new_fig_html = new_fig.to_html(include_plotlyjs='cdn')
+                    self.browser.setHtml(new_fig_html)
+
+                    # Add Pie Chart for children
+                    new_pie_fig = create_pie_chart(children_data, f'Activities under "{clicked_full_name}" Distribution')
+                    new_pie_fig_html = new_pie_fig.to_html(include_plotlyjs='cdn')
+                    self.browser.setHtml(new_pie_fig_html)
 
         fig.data[0].on_click(update_trace)
 
