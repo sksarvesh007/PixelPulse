@@ -2,6 +2,7 @@ import pygetwindow as gw
 import time
 import json
 import os
+import threading
 
 def get_active_window_title():
     window = gw.getActiveWindow()
@@ -55,6 +56,28 @@ def save_json_data(data, filename):
     with open(filename, 'w') as json_file:
         json.dump(data, json_file, indent=4)
 
+def prune_data(data):
+    def prune_nodes(nodes):
+        pruned_nodes = []
+        for node in nodes:
+            total_seconds = (
+                node['time']['hours'] * 3600 +
+                node['time']['minutes'] * 60 +
+                node['time']['seconds']
+            )
+            if total_seconds >= 10:
+                node['children'] = prune_nodes(node['children'])
+                pruned_nodes.append(node)
+        return pruned_nodes
+
+    data['activities'] = prune_nodes(data['activities'])
+
+def periodic_prune(data, interval, filename):
+    while True:
+        time.sleep(interval)
+        prune_data(data)
+        save_json_data(data, filename)
+
 active_window = get_active_window_title()
 active_window = remove_special_chars(active_window)
 
@@ -67,6 +90,11 @@ if os.path.exists(json_filename):
         data = json.load(json_file)
 
 start_time = time.time()
+
+# Start the pruning thread
+prune_thread = threading.Thread(target=periodic_prune, args=(data, 300, json_filename))
+prune_thread.daemon = True
+prune_thread.start()
 
 while True:
     prev_window = active_window
