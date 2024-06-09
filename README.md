@@ -1,5 +1,7 @@
 # PIXELPULSE
 
+![1717933251283](image/README/1717933251283.png)
+
 * [X] to find out which window the user is on
 
   `used pygetwindows for getting what is the active windows of the user  , also gets which file and what directory is the user working on and on which tab in which browser is the user currently `
